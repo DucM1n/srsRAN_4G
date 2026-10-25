@@ -1,0 +1,16 @@
+// MSA#16: X2 Signalling Flood - UE Trace
+
+meas_report_desc = (
+  {
+    eventA = 3;
+    a3_offset = -20;       // Ngưỡng âm để thỏa mãn điều kiện đo ngay lập tức
+    hysteresis = 0;
+    time_to_trigger = 0;   // Không chờ trễ
+    trigger_quant = "RSRP";
+    max_report_cells = 1;
+    report_interv = 120;   // Bắn lặp lại mỗi 120ms
+    report_amount = -1;    // -1 = Vô hạn (Infinity)
+  }
+);
+
+// END OF MSA#16

@@ -1,0 +1,2 @@
+[expert]
+rrc_inactivity_timer = 2000

